@@ -2,7 +2,7 @@
   "$schema": "https://statics.teams.microsoft.com/sdk/v1.0/manifest/MicrosoftTeams.schema.json",
   "manifestVersion": "1.0",
   "version": "1.0.0",
-  "id": " 00000000-0000-0000-0000-000000000000",
+  "id": "b5b72ea9-2964-429f-b175-9a6b52ed00a4",
   "packageName": "com.contoso.helloworld",
   "developer": {
     "name": "Contoso",
@@ -11,7 +11,7 @@
     "termsOfUseUrl": "https://www.microsoft.com/termsofuse"
   },
   "name": {
-    "short": "Hello World",
+    "short": "OAuthCard Demo",
     "full": "Hello World App for Microsoft Teams"
   },
   "description": {
@@ -44,7 +44,7 @@
   ],
   "bots": [
     {
-      "botId": "00000000-0000-0000-0000-000000000000",
+      "botId": "b5b72ea9-2964-429f-b175-9a6b52ed00a4",
       "needsChannelSelector": false,
       "isNotificationOnly": false,
       "scopes": [
@@ -55,7 +55,7 @@
   ],
   "composeExtensions": [
     {
-      "botId": "00000000-0000-0000-0000-000000000000",
+      "botId": "b5b72ea9-2964-429f-b175-9a6b52ed00a4",
       "scopes": [
         "personal",
         "team"
@@ -71,12 +71,25 @@
               "name": "cardTitle",
               "description": "Card title to use",
               "title": "Card title"
+            },
+			{
+              "name": "cardTitle2",
+              "description": "Card title to use 2",
+              "title": "Card title 2"
+            }
+			,
+			{
+              "name": "cardTitle4",
+              "description": "Card title to use 4",
+              "title": "Card title 5"
             }
           ]
         }
       ]
     }
   ],
-  "permissions": [],
-  "validDomains": []
+  "permissions": ["messageTeamMembers", "identity"],
+  "validDomains": [
+  "*.botframework.com"
+  ]
 }

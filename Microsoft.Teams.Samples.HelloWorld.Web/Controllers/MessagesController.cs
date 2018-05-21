@@ -3,7 +3,7 @@ using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.Web.Http;
-
+using Microsoft.Bot.Builder.Dialogs;
 using Microsoft.Bot.Connector;
 using Microsoft.Bot.Connector.Teams;
 using Microsoft.Bot.Connector.Teams.Models;
@@ -25,12 +25,15 @@ namespace Microsoft.Teams.Samples.HelloWorld.Web.Controllers
                         ? Request.CreateResponse<ComposeExtensionResponse>(response)
                         : new HttpResponseMessage(HttpStatusCode.OK);
                 }
-                else
+                else if (activity.Type == ActivityTypes.Message)
                 {
-                    await EchoBot.EchoMessage(connector, activity);
-                    return new HttpResponseMessage(HttpStatusCode.Accepted);
+                    await Conversation.SendAsync(activity, () => new Dialogs.RootDialog());
                 }
+
             }
+            return Request.CreateResponse(HttpStatusCode.OK);
         }
+
+
     }
 }
