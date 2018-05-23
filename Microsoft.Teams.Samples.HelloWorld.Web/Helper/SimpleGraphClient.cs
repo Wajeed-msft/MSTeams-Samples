@@ -61,6 +61,28 @@ namespace Microsoft.Teams.Samples.HelloWorld.Web.Helper
             return me;
         }
 
+        /// <summary>
+        /// Get all users in the organization
+        /// </summary>
+        /// <returns>A list of Users</returns>
+        public async Task<List<User>> GetAllUsers()
+        {
+            List<User> userResult = new List<User>();
+
+            GraphServiceClient graphClient = GetAuthenticatedClient();
+            IGraphServiceUsersCollectionPage users = await graphClient.Users.Request().Top(500).GetAsync(); // Hard coded to pull 500 users
+            userResult.AddRange(users);
+
+            // Users are returned as pages; keep pulling pages until we run out of them
+            while (users.NextPageRequest != null)
+            {
+                users = await users.NextPageRequest.GetAsync();
+                userResult.AddRange(users);
+            }
+
+            return userResult;
+        }
+
         public async Task<System.IO.Stream> GetProfilePhoto()
         {
             var graphClient = GetAuthenticatedClient();

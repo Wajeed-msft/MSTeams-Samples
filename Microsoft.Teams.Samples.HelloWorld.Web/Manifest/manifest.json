@@ -71,17 +71,6 @@
               "name": "cardTitle",
               "description": "Card title to use",
               "title": "Card title"
-            },
-			{
-              "name": "cardTitle2",
-              "description": "Card title to use 2",
-              "title": "Card title 2"
-            }
-			,
-			{
-              "name": "cardTitle4",
-              "description": "Card title to use 4",
-              "title": "Card title 5"
             }
           ]
         }

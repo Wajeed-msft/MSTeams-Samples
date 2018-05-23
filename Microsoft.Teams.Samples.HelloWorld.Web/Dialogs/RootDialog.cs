@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using System.Configuration;
 using Microsoft.Bot.Builder.Dialogs;
 using Microsoft.Bot.Connector;
+using Microsoft.Bot.Connector.Teams.Models;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -15,6 +16,7 @@ using System.Text;
 using System.Threading;
 using Microsoft.Teams.Samples.HelloWorld.Web.Helper;
 using System.IO;
+
 
 namespace Microsoft.Teams.Samples.HelloWorld.Web.Dialogs
 {
@@ -53,7 +55,25 @@ namespace Microsoft.Teams.Samples.HelloWorld.Web.Dialogs
                 var token = await context.GetUserTokenAsync(ConnectionName).ConfigureAwait(false);
                 if (token != null)
                 {
+                    // await UplaodFileToSharepoint(context, token);
                     // use the token to do exciting things!
+                    await ReplyProfileInfo(context, token);
+                }
+                else
+                {
+                    // If Bot Service does not have a token, send an OAuth card to sign in
+                    await SendOAuthCardAsync(context, (Activity)context.Activity);
+                }
+            }
+            else if (message.Equals("send"))
+            {
+                // First ask Bot Service if it already has a token for this user
+                var token = await context.GetUserTokenAsync(ConnectionName).ConfigureAwait(false);
+                if (token != null)
+                {
+                    // await UplaodFileToSharepoint(context, token);
+                    // use the token to do exciting things!
+                    // await GetAllUsersAndSendHelloMessage(context, token);
                     await ReplyProfileInfo(context, token);
                 }
                 else
@@ -80,12 +100,94 @@ namespace Microsoft.Teams.Samples.HelloWorld.Web.Dialogs
             }
         }
 
+        private async Task GetAllUsersAndSendHelloMessage(IDialogContext context, TokenResponse token)
+        {
+            try
+            {
+
+                var client = new SimpleGraphClient(token.Token);
+
+                var allUsers = await client.GetAllUsers();
+                var data = context.Activity.GetChannelData<TeamsChannelData>();
+
+                var tenantId = data.Tenant.Id;
+
+                var botAccount = new ChannelAccount(context.Activity.Recipient.Id, context.Activity.Recipient.Name);
+
+                foreach (var user in allUsers)
+                {
+                    var userAccount = new ChannelAccount(user.Id, user.DisplayName);
+                    await SendWelcomeMessage(context, botAccount, userAccount, tenantId);
+                }
+            }
+            catch (Exception ex)
+            {
+
+                Console.WriteLine(ex);
+            }
+
+        }
+
+        private async Task SendWelcomeMessage(IDialogContext context, ChannelAccount from, ChannelAccount to, string tenantId)
+        {
+
+            //// var channelId = this.channelId;
+            //var serviceURL = context.Activity.ServiceUrl;
+            //var connector = new ConnectorClient(new Uri(serviceURL));
+            ////var channelData = new Dictionary<string, string>();
+            ////channelData["teamsChannelId"] = channelId;
+
+            //// Create a new reply.
+            //IMessageActivity newMessage = Activity.CreateMessageActivity();
+            //newMessage.Type = ActivityTypes.Message;
+
+            //// var card = GetHeroCard(); 
+            ////var card = GetConnectorCard();
+            ////newMessage.Attachments.Add(card.ToAttachment());
+
+            //ConversationParameters conversationParams = new ConversationParameters(
+            //    isGroup: true,
+            //    bot: null,
+            //    members: new[] { context.Activity.From },
+            //    topicName: "Test Conversation",
+            //    activity: (Activity)newMessage,
+            //    channelData: null);
+            //MicrosoftAppCredentials.TrustServiceUrl(serviceURL, DateTime.MaxValue);
+            //await connector.Conversations.CreateConversationAsync(conversationParams);
+
+
+
+
+
+            var connector = new ConnectorClient(new Uri(context.Activity.ServiceUrl));
+            // Create or get existing chat conversation with user
+            var response = connector.Conversations.CreateOrGetDirectConversation(from, to, tenantId);
+
+            // Construct the message to post to conversation
+            Activity newActivity = new Activity()
+            {
+                Text = "Hello",
+                Type = ActivityTypes.Message,
+                Conversation = new ConversationAccount
+                {
+                    Id = response.Id
+                },
+            };
+
+            // Post the message to chat conversation with user
+            await connector.Conversations.SendToConversationAsync(response.Id, newActivity);
+        }
 
         private async Task SendOAuthCardAsync(IDialogContext context, Activity activity)
         {
             await context.PostAsync($"To do this, you'll first need to sign in.");
 
             var reply = await context.Activity.CreateOAuthReplyAsync(ConnectionName, "Please sign in", "Sign In", true).ConfigureAwait(false);
+            //var fallbackUrl = (reply.Attachments[0].Content as SigninCard).Buttons[0].Value.ToString();
+
+            //fallbackUrl = fallbackUrl.Substring(0, fallbackUrl.IndexOf("redirectUri")) + "redirectUri=" + HttpUtility.UrlEncode("https://token.botframework.com/.auth/web/redirect");
+            //(reply.Attachments[0].Content as SigninCard).Buttons[0].Value += "&fallbackUrl="+ HttpUtility.UrlEncode(fallbackUrl);
+
             await context.PostAsync(reply);
 
             context.Wait(WaitForToken);
@@ -102,13 +204,16 @@ namespace Microsoft.Teams.Samples.HelloWorld.Web.Dialogs
             }
             else
             {
-                if (!string.IsNullOrEmpty(activity.Text))
+                // Get the Activity Message as well as activity.value in case of Auto closing of pop-up
+                string input = activity.Type == ActivityTypes.Message ? activity.Text : ((dynamic)(activity.Value)).state.ToString();
+                if (!string.IsNullOrEmpty(input))
                 {
-                    tokenResponse = await context.GetUserTokenAsync(ConnectionName, activity.Text.Trim());
+                    tokenResponse = await context.GetUserTokenAsync(ConnectionName, input.Trim());
                     if (tokenResponse != null)
                     {
                         try
                         {
+                            // await UplaodFileToSharepoint(context, tokenResponse);
                             await ReplyProfileInfo(context, tokenResponse);
                         }
                         catch (Exception ex)
@@ -124,6 +229,68 @@ namespace Microsoft.Teams.Samples.HelloWorld.Web.Dialogs
                 await SendOAuthCardAsync(context, activity);
             }
         }
+
+        private static async Task UplaodFileToSharepoint(IDialogContext context, TokenResponse tokenResponse)
+        {
+
+
+            // var bytes = System.IO.File.ReadAllText(fileInfo.FullName);
+
+
+            //    var fileContent = new StreamContent(stream);
+
+            //    // var fileContent = new StringContent(bytes);// ByteArrayContent(bytes);
+            //    fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse( MimeMapping.GetMimeMapping(fileInfo.Name));
+            //// MediaTypeHeaderValue.Parse("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+
+            //    var requestContent = new MultipartFormDataContent();
+            //    requestContent.Add(fileContent, "File", fileInfo.Name);
+
+            //    var request = new HttpRequestMessage(HttpMethod.Put, endpoint);
+            //    request.Headers.Authorization =
+            //new AuthenticationHeaderValue("Bearer", tokenResponse.Token);
+            //    request.Content = fileContent;
+            //    var client = new HttpClient();
+            //    var response = client.SendAsync(request).Result;
+            //    Console.WriteLine(response);
+
+            // 6f94967e-7b15-48d6-8cdd-d31fc85389db
+            // FileInfo fileInfo = new FileInfo(@"E:\Wajeed\To Upload\Resume - Wajeed Shaikh.docx");
+            // @"E:\Wajeed\To Upload\Resume - Wajeed Shaikh.docx";
+
+            var filePath = @"F:\Projects\TestProjects\MSTeamsSample\MSTeamsSample\Files\Test File.docx";
+            var fileName = Path.GetFileName(filePath);
+            var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+            var endpoint = $"https://graph.microsoft.com/beta/groups/6f94967e-7b15-48d6-8cdd-d31fc85389db/drive/items/root:/General/{fileName}:/content";
+
+            // Create an HTTPClient instance to communicate with the REST API of OneDrive
+            using (var client = new HttpClient())
+            {
+                // Load the content to upload
+                using (var content = new StreamContent(fileStream))
+                {
+                    // Indicate that we're sending binary data
+                    content.Headers.Add("Content-Type", MimeMapping.GetMimeMapping(fileName));
+
+                    // Construct the PUT message towards the webservice
+                    using (var request = new HttpRequestMessage(HttpMethod.Put, endpoint))
+                    {
+                        // Set the content to upload
+                        request.Content = content;
+
+                        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenResponse.Token);
+
+                        // Request the response from the webservice
+                        using (var response = await client.SendAsync(request))
+                        {
+                            // Check the response.
+                        }
+
+                    }
+                }
+            }
+        }
+
 
         private static async Task ReplyProfileInfo(IDialogContext context, TokenResponse tokenResponse)
         {
@@ -149,21 +316,23 @@ namespace Microsoft.Teams.Samples.HelloWorld.Web.Dialogs
                 //using (var connector = new ConnectorClient(new Uri(context.Activity.ServiceUrl)))
                 //{
                 //    var attachments = new Attachments(connector);
-                //    var response = await attachments.Client.Conversations.UploadAttachmentAsync(
-                //         context.Activity.Conversation.Id,
-                //        new AttachmentData
-                //        {
-                //            Name = fileName,
-                //            OriginalBase64 = File.ReadAllBytes(imagePath),
-                //            Type = "image/png" 
-                //        });
+                //    var attachmentData = new AttachmentData
+                //    {
+                //        Name = fileName,
+                //        OriginalBase64 = File.ReadAllBytes(imagePath),
+                //        Type = "image/png"
+                //    };
+                //    // context.Activity.Conversation.Id
+                //    var response = await connector.Conversations.UploadAttachmentAsync(
+                //         context.Activity.Conversation.Id, attachmentData
+                //        );
 
                 //    var attachmentUri = attachments.GetAttachmentUri(response.Id);
 
                 //    attachment = new Attachment
                 //    {
                 //        Name = fileName,
-                //        ContentType = "application/pdf",
+                //        ContentType = "image/png",
                 //        ContentUrl = attachmentUri
                 //    };
                 //}
@@ -171,12 +340,30 @@ namespace Microsoft.Teams.Samples.HelloWorld.Web.Dialogs
                 #endregion
 
                 // Image attachment inline.
+                //attachment = new Attachment
+                //{
+                //    Name = fileName,
+                //    ContentType = "image/png",
+                //    ContentUrl = BaseUri + "/ProfilePhotos/" + fileName
+                //};
+
+
+                var imageData = Convert.ToBase64String(File.ReadAllBytes(imagePath));
+
                 attachment = new Attachment
                 {
                     Name = fileName,
-                    ContentType = "application/pdf",
-                    ContentUrl = BaseUri + "/ProfilePhotos/" + fileName
+                    ContentType = "image/png",
+                    ContentUrl = $"data:image/png;base64,{imageData}"
                 };
+
+
+                var msg = context.MakeMessage();
+                msg.Text = $"You are {me.DisplayName} and here is you profile photo.";
+                msg.Attachments.Add(attachment);
+                await context.PostAsync(msg);
+
+
 
             }
             catch (Exception ex)
@@ -185,10 +372,7 @@ namespace Microsoft.Teams.Samples.HelloWorld.Web.Dialogs
                 Console.WriteLine(ex);
             }
 
-            var msg = context.MakeMessage();
-            msg.Text = $"You are {me.DisplayName} and here is you profile photo.";
-            msg.Attachments.Add(attachment);
-            await context.PostAsync(msg);
+
         }
 
 
