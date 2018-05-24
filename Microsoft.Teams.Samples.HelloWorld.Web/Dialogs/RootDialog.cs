@@ -67,15 +67,8 @@ namespace Microsoft.Teams.Samples.HelloWorld.Web.Dialogs
                 // Sign the user out from AAD
                 await Signout(context);
             }
-            else if (message.Contains("upload"))
-            {
-                // Check the attachment and upload to specific folder
-                await ReceiveAttachments(context, activity);
-
-            }
-            else
-            {
-                await context.PostAsync("You can type 'me', 'upload' & 'signout' commands.");
+            else {
+                await context.PostAsync("You can type 'me' & 'signout' commands.");
                 context.Wait(MessageReceivedAsync);
             }
         }
@@ -99,12 +92,16 @@ namespace Microsoft.Teams.Samples.HelloWorld.Web.Dialogs
             if (tokenResponse != null)
             {
                 // Use the token to do exciting things!
+                await ReplyProfileInfo(context, tokenResponse);
             }
             else
             {
-                if (!string.IsNullOrEmpty(activity.Text))
+                // Get the Activity Message as well as activity.value in case of Auto closing of pop-up
+                string input = activity.Type == ActivityTypes.Message ? Bot.Connector.Teams.ActivityExtensions.GetTextWithoutMentions(activity)
+                                                                : ((dynamic)(activity.Value)).state.ToString();
+                if (!string.IsNullOrEmpty(input))
                 {
-                    tokenResponse = await context.GetUserTokenAsync(ConnectionName, activity.Text.Trim());
+                    tokenResponse = await context.GetUserTokenAsync(ConnectionName, input.Trim());
                     if (tokenResponse != null)
                     {
                         try
@@ -144,37 +141,11 @@ namespace Microsoft.Teams.Samples.HelloWorld.Web.Dialogs
             Attachment attachment = null;
             try
             {
-                #region Send Attachment Code
-                // Send Attachment Code
-                //using (var connector = new ConnectorClient(new Uri(context.Activity.ServiceUrl)))
-                //{
-                //    var attachments = new Attachments(connector);
-                //    var response = await attachments.Client.Conversations.UploadAttachmentAsync(
-                //         context.Activity.Conversation.Id,
-                //        new AttachmentData
-                //        {
-                //            Name = fileName,
-                //            OriginalBase64 = File.ReadAllBytes(imagePath),
-                //            Type = "image/png" 
-                //        });
-
-                //    var attachmentUri = attachments.GetAttachmentUri(response.Id);
-
-                //    attachment = new Attachment
-                //    {
-                //        Name = fileName,
-                //        ContentType = "application/pdf",
-                //        ContentUrl = attachmentUri
-                //    };
-                //}
-
-                #endregion
-
                 // Image attachment inline.
                 attachment = new Attachment
                 {
                     Name = fileName,
-                    ContentType = "application/pdf",
+                    ContentType = "image/png",
                     ContentUrl = BaseUri + "/ProfilePhotos/" + fileName
                 };
 
@@ -201,55 +172,5 @@ namespace Microsoft.Teams.Samples.HelloWorld.Web.Dialogs
             await context.PostAsync($"You have been signed out.");
         }
 
-        private static async Task ReceiveAttachments(IDialogContext context, Activity activity)
-        {
-            foreach (var attachment in activity.Attachments)
-            {
-                using (HttpClient httpClient = new HttpClient())
-                {
-                    // Get the download URL
-                    var url = (attachment.Content as JObject)["downloadUrl"].ToString();
-
-                    var responseMessage = await httpClient.GetAsync(url);
-                    var contentLenghtBytes = responseMessage.Content.Headers.ContentLength;
-
-                    // Read the Stream.
-                    Stream attachmentStream = await responseMessage.Content.ReadAsStreamAsync();
-                    attachmentStream.Position = 0;
-
-                    await context.PostAsync($"Attachment of {attachment.ContentType} " +
-                        $"type and size of {contentLenghtBytes} bytes received. Here are your files: " +
-                        $"<a href=\"{attachment.ContentUrl.Replace(attachment.Name, "")}\">Chat Files</a>");
-                    try
-                    {
-                        await SendAdaptiveCard(context, attachmentStream);
-                    }
-                    catch (Exception)
-                    {
-                        await context.PostAsync($"Could not parse adaptive card. Please try a valid Json.");
-                    }
-                }
-            }
-        }
-
-        private static async Task SendAdaptiveCard(IDialogContext context, Stream attachmentStream)
-        {
-            StreamReader reader = new StreamReader(attachmentStream);
-            string text = reader.ReadToEnd();
-
-            var results = AdaptiveCard.FromJson(text);
-            var card = results.Card;
-            var cardAttachment = new Attachment()
-            {
-                Content = card,
-                ContentType = AdaptiveCard.ContentType,
-                Name = "Card"
-            };
-
-            var reply = context.MakeMessage();
-            reply.Text = "Here is your Adaptive Card";
-            reply.Attachments.Add(cardAttachment);
-            await context.PostAsync(reply);
-        }
     }
 }

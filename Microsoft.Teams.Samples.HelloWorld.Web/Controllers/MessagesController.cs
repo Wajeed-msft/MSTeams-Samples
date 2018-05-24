@@ -29,6 +29,13 @@ namespace Microsoft.Teams.Samples.HelloWorld.Web.Controllers
                 {
                     await Conversation.SendAsync(activity, () => new Dialogs.RootDialog());
                 }
+                else if (activity.Type == ActivityTypes.Invoke)
+                {
+                    if (activity.Name == "signin/verifyState")
+                    {
+                        await Conversation.SendAsync(activity, () => new Dialogs.RootDialog());
+                    }
+                }
 
             }
             return Request.CreateResponse(HttpStatusCode.OK);
