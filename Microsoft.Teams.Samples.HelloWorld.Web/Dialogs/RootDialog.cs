@@ -40,194 +40,82 @@ namespace Microsoft.Teams.Samples.HelloWorld.Web.Dialogs
             context.Wait(MessageReceivedAsync);
         }
 
-        /// <summary>
-        /// Supports the commands recents, send, me, and signout against the Graph API
-        /// </summary>
+        // This sample dialog shows two simple flows:
+        // 1) A silly example of receiving a file from the user, processing the key elements,
+        //    and then constructing the attachment and sending it back.
+        // 2) Creating a new file consent card requesting user permission to upload a file.
         private async Task MessageReceivedAsync(IDialogContext context, IAwaitable<object> result)
         {
-            var activity = await result as Activity;
+            var replyMessage = context.MakeMessage();
+            Attachment returnCard;
 
-            var message = Bot.Connector.Teams.ActivityExtensions.GetTextWithoutMentions(activity).ToLowerInvariant();
+            var message = await result as Activity;
 
-            if (message.Equals("me"))
+            // Check to see if the user is sending the bot a file.
+            if (message.Attachments != null && message.Attachments.Any())
             {
-                // First ask Bot Service if it already has a token for this user
-                var token = await context.GetUserTokenAsync(ConnectionName).ConfigureAwait(false);
-                if (token != null)
+                var attachment = message.Attachments.First();
+
+                if (attachment.ContentType == FileDownloadInfo.ContentType)
                 {
-                    // await UplaodFileToSharepoint(context, token);
-                    // use the token to do exciting things!
-                    await ReplyProfileInfo(context, token);
-                }
-                else
-                {
-                    // If Bot Service does not have a token, send an OAuth card to sign in
-                    await SendOAuthCardAsync(context, (Activity)context.Activity);
-                }
-            }
-            else if (message.Equals("send"))
-            {
-                // First ask Bot Service if it already has a token for this user
-                var token = await context.GetUserTokenAsync(ConnectionName).ConfigureAwait(false);
-                if (token != null)
-                {
-                    // await UplaodFileToSharepoint(context, token);
-                    // use the token to do exciting things!
-                    // await GetAllUsersAndSendHelloMessage(context, token);
-                    await ReplyProfileInfo(context, token);
-                }
-                else
-                {
-                    // If Bot Service does not have a token, send an OAuth card to sign in
-                    await SendOAuthCardAsync(context, (Activity)context.Activity);
-                }
-            }
-            else if (message.ToLowerInvariant().Equals("signout"))
-            {
-                // Sign the user out from AAD
-                await Signout(context);
-            }
-            else if (message.Contains("upload"))
-            {
-                // Check the attachment and upload to specific folder
-                await ReceiveAttachments(context, activity);
-
-            }
-            else
-            {
-                await context.PostAsync("You can type 'me', 'upload' & 'signout' commands.");
-                context.Wait(MessageReceivedAsync);
-            }
-        }
-
-        private async Task GetAllUsersAndSendHelloMessage(IDialogContext context, TokenResponse token)
-        {
-            try
-            {
-
-                var client = new SimpleGraphClient(token.Token);
-
-                var allUsers = await client.GetAllUsers();
-                var data = context.Activity.GetChannelData<TeamsChannelData>();
-
-                var tenantId = data.Tenant.Id;
-
-                var botAccount = new ChannelAccount(context.Activity.Recipient.Id, context.Activity.Recipient.Name);
-
-                foreach (var user in allUsers)
-                {
-                    var userAccount = new ChannelAccount(user.Id, user.DisplayName);
-                    await SendWelcomeMessage(context, botAccount, userAccount, tenantId);
-                }
-            }
-            catch (Exception ex)
-            {
-
-                Console.WriteLine(ex);
-            }
-
-        }
-
-        private async Task SendWelcomeMessage(IDialogContext context, ChannelAccount from, ChannelAccount to, string tenantId)
-        {
-
-            //// var channelId = this.channelId;
-            //var serviceURL = context.Activity.ServiceUrl;
-            //var connector = new ConnectorClient(new Uri(serviceURL));
-            ////var channelData = new Dictionary<string, string>();
-            ////channelData["teamsChannelId"] = channelId;
-
-            //// Create a new reply.
-            //IMessageActivity newMessage = Activity.CreateMessageActivity();
-            //newMessage.Type = ActivityTypes.Message;
-
-            //// var card = GetHeroCard(); 
-            ////var card = GetConnectorCard();
-            ////newMessage.Attachments.Add(card.ToAttachment());
-
-            //ConversationParameters conversationParams = new ConversationParameters(
-            //    isGroup: true,
-            //    bot: null,
-            //    members: new[] { context.Activity.From },
-            //    topicName: "Test Conversation",
-            //    activity: (Activity)newMessage,
-            //    channelData: null);
-            //MicrosoftAppCredentials.TrustServiceUrl(serviceURL, DateTime.MaxValue);
-            //await connector.Conversations.CreateConversationAsync(conversationParams);
-
-
-
-
-
-            var connector = new ConnectorClient(new Uri(context.Activity.ServiceUrl));
-            // Create or get existing chat conversation with user
-            var response = connector.Conversations.CreateOrGetDirectConversation(from, to, tenantId);
-
-            // Construct the message to post to conversation
-            Activity newActivity = new Activity()
-            {
-                Text = "Hello",
-                Type = ActivityTypes.Message,
-                Conversation = new ConversationAccount
-                {
-                    Id = response.Id
-                },
-            };
-
-            // Post the message to chat conversation with user
-            await connector.Conversations.SendToConversationAsync(response.Id, newActivity);
-        }
-
-        private async Task SendOAuthCardAsync(IDialogContext context, Activity activity)
-        {
-            await context.PostAsync($"To do this, you'll first need to sign in.");
-
-            var reply = await context.Activity.CreateOAuthReplyAsync(ConnectionName, "Please sign in", "Sign In", true).ConfigureAwait(false);
-            //var fallbackUrl = (reply.Attachments[0].Content as SigninCard).Buttons[0].Value.ToString();
-
-            //fallbackUrl = fallbackUrl.Substring(0, fallbackUrl.IndexOf("redirectUri")) + "redirectUri=" + HttpUtility.UrlEncode("https://token.botframework.com/.auth/web/redirect");
-            //(reply.Attachments[0].Content as SigninCard).Buttons[0].Value += "&fallbackUrl="+ HttpUtility.UrlEncode(fallbackUrl);
-
-            await context.PostAsync(reply);
-
-            context.Wait(WaitForToken);
-        }
-
-        private async Task WaitForToken(IDialogContext context, IAwaitable<object> result)
-        {
-            var activity = await result as Activity;
-
-            var tokenResponse = activity.ReadTokenResponseContent();
-            if (tokenResponse != null)
-            {
-                // Use the token to do exciting things!
-            }
-            else
-            {
-                // Get the Activity Message as well as activity.value in case of Auto closing of pop-up
-                string input = activity.Type == ActivityTypes.Message ? activity.Text : ((dynamic)(activity.Value)).state.ToString();
-                if (!string.IsNullOrEmpty(input))
-                {
-                    tokenResponse = await context.GetUserTokenAsync(ConnectionName, input.Trim());
-                    if (tokenResponse != null)
+                    FileDownloadInfo downloadInfo = (attachment.Content as JObject).ToObject<FileDownloadInfo>();
+                    if (downloadInfo != null)
                     {
-                        try
-                        {
-                            // await UplaodFileToSharepoint(context, tokenResponse);
-                            await ReplyProfileInfo(context, tokenResponse);
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine(ex);
-                        }
-
-                        context.Wait(MessageReceivedAsync);
-                        return;
+                        returnCard = CreateFileInfoAttachment(downloadInfo, attachment.Name, attachment.ContentUrl);
+                        replyMessage.Attachments.Add(returnCard);
                     }
                 }
-                await context.PostAsync($"Hmm. Something went wrong. Let's try again.");
-                await SendOAuthCardAsync(context, activity);
             }
+            else
+            {
+                // Illustrates creating a file consent card.
+                returnCard = CreateFileConsentAttachment();
+                replyMessage.Attachments.Add(returnCard);
+            }
+            await context.PostAsync(replyMessage);
+        }
+
+
+        private static Attachment CreateFileInfoAttachment(FileDownloadInfo downloadInfo, string name, string contentUrl)
+        {
+            FileInfoCard card = new FileInfoCard()
+            {
+                FileType = downloadInfo.FileType,
+                UniqueId = downloadInfo.UniqueId
+            };
+
+            Attachment att = card.ToAttachment();
+            att.ContentUrl = contentUrl;
+            att.Name = name;
+
+            return att;
+        }
+
+        private static Attachment CreateFileConsentAttachment()
+        {
+            JObject acceptContext = new JObject();
+            // Fill in any additional context to be sent back when the user accepts the file.
+
+            JObject declineContext = new JObject();
+            // Fill in any additional context to be sent back when the user declines the file.
+
+
+            var filePath = @"E:\Wajeed\To Upload\Resume - Wajeed Shaikh.docx";  //@"F:\Projects\TestProjects\MSTeamsSample\MSTeamsSample\Files\Test File.docx";
+            var fileName = Path.GetFileName(filePath);
+            var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+
+            FileConsentCard card = new FileConsentCard()
+            {
+                AcceptContext = acceptContext,
+                DeclineContext = declineContext,
+                SizeInBytes = fileStream.Length,
+                Description = "This is my resume."
+            };
+
+            Attachment att = card.ToAttachment();
+            att.Name = "Resume - Wajeed Shaikh.docx";
+
+            return att;
         }
 
         private static async Task UplaodFileToSharepoint(IDialogContext context, TokenResponse tokenResponse)
@@ -292,148 +180,5 @@ namespace Microsoft.Teams.Samples.HelloWorld.Web.Dialogs
         }
 
 
-        private static async Task ReplyProfileInfo(IDialogContext context, TokenResponse tokenResponse)
-        {
-            var client = new SimpleGraphClient(tokenResponse.Token);
-
-            var me = await client.GetMe();
-
-            var photo = await client.GetProfilePhoto();
-            var fileName = me.Id + "-ProflePhoto.png";
-            var imagePath = System.Web.Hosting.HostingEnvironment.MapPath("~/ProfilePhotos/" + fileName);
-
-            using (var fileStream = File.Create(imagePath))
-            {
-                photo.Seek(0, SeekOrigin.Begin);
-                photo.CopyTo(fileStream);
-            }
-
-            Attachment attachment = null;
-            try
-            {
-                #region Send Attachment Code
-                // Send Attachment Code
-                //using (var connector = new ConnectorClient(new Uri(context.Activity.ServiceUrl)))
-                //{
-                //    var attachments = new Attachments(connector);
-                //    var attachmentData = new AttachmentData
-                //    {
-                //        Name = fileName,
-                //        OriginalBase64 = File.ReadAllBytes(imagePath),
-                //        Type = "image/png"
-                //    };
-                //    // context.Activity.Conversation.Id
-                //    var response = await connector.Conversations.UploadAttachmentAsync(
-                //         context.Activity.Conversation.Id, attachmentData
-                //        );
-
-                //    var attachmentUri = attachments.GetAttachmentUri(response.Id);
-
-                //    attachment = new Attachment
-                //    {
-                //        Name = fileName,
-                //        ContentType = "image/png",
-                //        ContentUrl = attachmentUri
-                //    };
-                //}
-
-                #endregion
-
-                // Image attachment inline.
-                //attachment = new Attachment
-                //{
-                //    Name = fileName,
-                //    ContentType = "image/png",
-                //    ContentUrl = BaseUri + "/ProfilePhotos/" + fileName
-                //};
-
-
-                var imageData = Convert.ToBase64String(File.ReadAllBytes(imagePath));
-
-                attachment = new Attachment
-                {
-                    Name = fileName,
-                    ContentType = "image/png",
-                    ContentUrl = $"data:image/png;base64,{imageData}"
-                };
-
-
-                var msg = context.MakeMessage();
-                msg.Text = $"You are {me.DisplayName} and here is you profile photo.";
-                msg.Attachments.Add(attachment);
-                await context.PostAsync(msg);
-
-
-
-            }
-            catch (Exception ex)
-            {
-
-                Console.WriteLine(ex);
-            }
-
-
-        }
-
-
-        /// <summary>
-        /// Signs the user out from AAD
-        /// </summary>
-        public static async Task Signout(IDialogContext context)
-        {
-            await context.SignOutUserAsync(ConnectionName);
-            await context.PostAsync($"You have been signed out.");
-        }
-
-        private static async Task ReceiveAttachments(IDialogContext context, Activity activity)
-        {
-            foreach (var attachment in activity.Attachments)
-            {
-                using (HttpClient httpClient = new HttpClient())
-                {
-                    // Get the download URL
-                    var url = (attachment.Content as JObject)["downloadUrl"].ToString();
-
-                    var responseMessage = await httpClient.GetAsync(url);
-                    var contentLenghtBytes = responseMessage.Content.Headers.ContentLength;
-
-                    // Read the Stream.
-                    Stream attachmentStream = await responseMessage.Content.ReadAsStreamAsync();
-                    attachmentStream.Position = 0;
-
-                    await context.PostAsync($"Attachment of {attachment.ContentType} " +
-                        $"type and size of {contentLenghtBytes} bytes received. Here are your files: " +
-                        $"<a href=\"{attachment.ContentUrl.Replace(attachment.Name, "")}\">Chat Files</a>");
-                    try
-                    {
-                        await SendAdaptiveCard(context, attachmentStream);
-                    }
-                    catch (Exception)
-                    {
-                        await context.PostAsync($"Could not parse adaptive card. Please try a valid Json.");
-                    }
-                }
-            }
-        }
-
-        private static async Task SendAdaptiveCard(IDialogContext context, Stream attachmentStream)
-        {
-            StreamReader reader = new StreamReader(attachmentStream);
-            string text = reader.ReadToEnd();
-
-            var results = AdaptiveCard.FromJson(text);
-            var card = results.Card;
-            var cardAttachment = new Attachment()
-            {
-                Content = card,
-                ContentType = AdaptiveCard.ContentType,
-                Name = "Card"
-            };
-
-            var reply = context.MakeMessage();
-            reply.Text = "Here is your Adaptive Card";
-            reply.Attachments.Add(cardAttachment);
-            await context.PostAsync(reply);
-        }
     }
 }

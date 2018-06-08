@@ -240,6 +240,10 @@
     </Compile>
     <Compile Include="Helper\SimpleGraphClient.cs" />
     <Compile Include="MessageExtension.cs" />
+    <Compile Include="Models\FileConsentCard.cs" />
+    <Compile Include="Models\FileDownloadInfo.cs" />
+    <Compile Include="Models\FileInfoCard.cs" />
+    <Compile Include="Models\FileUploadInfo.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
